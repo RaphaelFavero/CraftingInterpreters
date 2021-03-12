@@ -1,0 +1,148 @@
+- A Map Of The Territory
+    - Scanning
+        - or lexing (lexical analysis) 
+        - taking a string of characters and chunking them into a series of tokens
+        - ignores whitespace and comments
+    - Parsing
+        - where our syntax gets a grammar: composing larger expressions out of smaller parts
+        - it builds a tree structure that mirrors the nested nature of the grammar
+            - called a Parse Tree or an Abstract Syntax Tree (AST)
+    - Static Analysis
+        - first binding or resolution
+            - for each identifier, find out where it's defined and wire the two together
+            - this is where scope comes into play
+        - this is also where we type check if the language is statically typed
+        - then we store the results either back into the syntax tree or into a symbol table or into a new data structure
+    - Front End includes 
+        - scanning, parsing, static analysis
+    - Intermediate representations
+        - a compiler is like a pipeline where each stage's job is to organise the data in a way that makes the next stage simpler to implement
+        - the front end of the pipeline is specific to the source language
+        - the back end is concerned with the CPU architecture
+        - in the middle the code may be stored in some intermediate representation
+        - having the same intermediate representations allows for having one front end for each language, then one back end for each target CPU architecture
+        - we can then mix and match those easily without having to rewrite everything for each specific cases
+    - Code generation
+        - generating the CPU instructions or VM bytecode
+        - it's called bytecode because each instruction is often a single byte long
+    - Virtual Machine
+        - a program that emulates a hypothetical chip supporting your virtual architecture at runtime
+        - it's slower because every instruction must be simulated at runtime
+    - [[Runtime]]
+        - implements the services that we need while the program is running
+        - for example, garbage collection or instance of tests, etc...
+        - in a compiled language the runtime gets inserted in the executable
+        - otherwise the runtime lives in the [[VM]] or the interpreter
+    - Shortcuts and Alternate Routes
+        - Single-pass compilers
+            - interleaves parsing, analysis and code generation
+            - no syntax trees or intermediate representation
+            - this restricts the design of the language
+            - for ex C or Pascal
+        - Tree-walk interpreters
+            - executes code right after parsing it to an AST
+            - the interpreter traverses the tree, evaluating each nodes as it goes to run the program
+            -  it tends to be slow
+        - [[Transpiler]]s
+            - writing a front end for your language which produce source code for some other language
+            - then you can use the existing compilation tools of this other language
+            - old name was source-to-source compiler or transcompiler
+            - for ex there are tons of transpilers that target Javascript
+        - [[Just In Time Compilation]]
+            - what the JVM and most Javascript interpreters do
+            - it compiles the program to native code when loaded
+            - so it doesn't need to know the user computer architecture in advance
+    - [[Compiler]]s and [[Interpreter]]s
+        - What's the difference between a compiler and an interpreter ?
+            - by compiler we mean that it translates source code to some other form without executing it
+            - by interpreter we mean that it takes source code and executes it immediately
+        - What about CPython ?
+            - the code is parsed and converted into bytecode and run into a VM
+            - so it looks like an interpreter from the user perspective
+            - but there is also some compiling going on
+            - so it's both, it's an interpreter and it has a compiler
+        - In practice, most scripting languages are like that
+            - it's an interpreter and it has a compiler
+            - Go, Scala, JS V8, C#, etc...
+            - the second interpreter we'll build will be like that as well
+    - Difference between arguments and parameters
+        - an argument is the actual value you pass to a function when you call it
+            - so a function call has an argument list
+        - a parameter is a variable that holds the value of the argument inside the body of the function
+            - so a function declaration has a parameter list
+    - Why might any language want to be object oriented ?
+        - it's true that "all inheritance all the time" can create monstrous class hierarchies
+        - but objects are pretty handy, we need some way of defining compound data types
+        - having methods in objects let us avoid the need to prefix all our functions with the name of the data type they operate on
+    - [[Class]]es or [[Prototype]]s
+        - Classes came first (C++, Java, ...)
+        - Prototypes got popular with Javascript
+        - Class-based languages have two core concepts : instances and classes
+            - instances store the state for each object and have a reference to the class
+            - classes contain the methods and inheritance chain
+            - so to call a method on an instance, you lookup the instance's class and then find the method there
+        - Prototype-based languages merge the two concepts: there are only objects, no classes
+            - each object may contain state and methods
+            - objects can directly inherit from each other (delegate to)
+- Building a Tree-Walk Interpreter
+    - Scanning
+        - Lexemes and Tokens
+            - lexemes are the raw substrings of the source code (`var` `=` `"something"` `;` etc...)
+            - a token is a bundle of a lexeme with other data about that lexeme
+        - Data found in a token
+            - Token type (keyword, operator, punctuation, etc...)
+            - Literal value
+            - Location information (line, column, length ...)
+        - Regular Languages and Expressions
+            - The core of the Scanner
+                - it's a loop
+                - it consumes characters until it emits a token
+                - and then loops back and does it again until it reaches the end of the input
+            - Lexical grammar
+                - it's the rules that determine how a particular language groups characters into lexemes
+                - so we can use a regex for each kind of lexeme and use those to match characters
+        - Recognizing Lexemes
+            - a lot of lexemes are single characters : `(), {} - + ; `etc...
+            - But single characters don't cover all operators
+                - `!` `=` `<` `>` can all be followed by another character that change the operator
+                - so we have to consider those as 2 characters lexemes
+        - Longer Lexemes
+            - Handling `/` for division
+                - needs a bit more handling because comments use the slash too
+                - when it's a comment, we keep going until the end of it without adding a token
+                - so the scanner basically ignores comments
+                    - this makes me think that maybe it's what [[Brendan Eich]] did
+                    - he basically checked the scanner rule for end of comment (here `\n`) and use that to inject his [[Javascript]] inside [[HTML]] ??
+            - Lookahead
+                - looking at coming character without consuming it
+                - our `peek()` function that has a one character lookahead
+                - more characters to lookahead, means a slower scanner
+                - most language only use a peek of one of two characters ahead
+            - New lines and whitespace
+                - whitespace is ` ` `\r`  `\t` and new line is `\n`
+                - whitespace does nothing in the scanner
+                - new line just increments the line count in the scanner
+                - both don't add any tokens
+            - String literals
+                - Strings
+                    - they always begin with `"`
+                    - then we consume characters until we hit the ending `"`
+                    - if we reach the end before the string is closed, we throw an error
+                    - we also update `line` each time we hit a newline
+                    - when we create the token, we also pass the value of the string, we didn't do that for other tokens
+                - Number literals
+                    - only thing to note here is that looking past the decimal point requires a second character of lookahead
+                    - because we don't want to consume the `.` until we know there is a digit after it
+                    - then we use Java `Double.parse` method to pass the value to our token
+                - Reserved Words and Identifiers
+                    - we can't match keywords like we did with multiple characters
+                        - you can't emit a token directly when encountering `or`, it could also be a variable named `orchid`
+                    - maximal munch
+                        - when two lexical grammar rules can both match a chunk of code that the scanner is looking at
+                        - whichever grammar matches the most characters wins
+                        - so in the previous example, `orchid` would win
+                        - it means that we can't detect a reserved word until we've reached the end of what might instead be an identifier
+                    - 
+                - 
+                - 
+
